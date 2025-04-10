@@ -3,10 +3,11 @@ Agentic sampling loop that calls the Anthropic API and local implementation of a
 """
 
 import platform
-from collections.abc import Callable
+from collections.abc import Callable, Awaitable
 from datetime import datetime
 from enum import StrEnum
 from typing import Any, cast
+import asyncio
 
 import httpx
 from anthropic import (
@@ -106,8 +107,8 @@ async def sampling_loop(
     provider: APIProvider,
     system_prompt_suffix: str,
     messages: list[BetaMessageParam],
-    output_callback: Callable[[BetaContentBlockParam], None],
-    tool_output_callback: Callable[[ToolResult, str], None],
+    output_callback: Callable[[BetaContentBlockParam], Any],
+    tool_output_callback: Callable[[ToolResult, str], Any],
     api_response_callback: Callable[
         [httpx.Request, httpx.Response | object | None, Exception | None], None
     ],
@@ -201,7 +202,9 @@ async def sampling_loop(
 
         tool_result_content: list[BetaToolResultBlockParam] = []
         for content_block in response_params:
-            output_callback(content_block)
+            result = output_callback(content_block)
+            if asyncio.iscoroutine(result):
+                await result
             if content_block["type"] == "tool_use":
                 result = await tool_collection.run(
                     name=content_block["name"],
@@ -210,7 +213,9 @@ async def sampling_loop(
                 tool_result_content.append(
                     _make_api_tool_result(result, content_block["id"])
                 )
-                tool_output_callback(result, content_block["id"])
+                tool_result = tool_output_callback(result, content_block["id"])
+                if asyncio.iscoroutine(tool_result):
+                    await tool_result
 
         if not tool_result_content:
             return messages

@@ -87,7 +87,7 @@ def save_to_storage(filename: str, data: str) -> None:
     except Exception as e:
         console.print(f"Error saving {filename}: {e}", style="red")
 
-def render_message(sender: Sender, message: str | BetaContentBlockParam | ToolResult) -> None:
+async def render_message(sender: Sender, message: str | BetaContentBlockParam | ToolResult) -> None:
     """Display a message in the terminal with appropriate styling."""
     # Check if the message is a tool result
     is_tool_result = not isinstance(message, (str, dict))
@@ -133,9 +133,9 @@ def api_response_callback(
         else:
             console.print(f"Error: {error}", style="red")
 
-def tool_output_callback(tool_output: ToolResult, tool_id: str):
+async def tool_output_callback(tool_output: ToolResult, tool_id: str):
     """Handle tool output by rendering it."""
-    render_message(Sender.TOOL, tool_output)
+    await render_message(Sender.TOOL, tool_output)
 
 async def main():
     """Main function for the terminal-based Claude client."""
@@ -195,7 +195,7 @@ async def main():
                 "role": Sender.USER,
                 "content": [BetaTextBlockParam(type="text", text=user_input)],
             })
-            render_message(Sender.USER, user_input)
+            await render_message(Sender.USER, user_input)
             
             # Process with Claude
             messages = await sampling_loop(
