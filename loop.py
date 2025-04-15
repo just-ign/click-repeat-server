@@ -201,6 +201,7 @@ async def sampling_loop(
     tool_version: ToolVersion,
     thinking_budget: int | None = None,
     token_efficient_tools_beta: bool = False,
+    custom_tool_run: Callable[[ToolCollection, str, dict[str, Any], str], Awaitable[ToolResult]] | None = None,
 ):
     """
     Agentic sampling loop for the assistant/tool interaction of computer use.
@@ -315,10 +316,19 @@ async def sampling_loop(
             if asyncio.iscoroutine(result):
                 await result
             if content_block["type"] == "tool_use":
-                result = await tool_collection.run(
-                    name=content_block["name"],
-                    tool_input=cast(dict[str, Any], content_block["input"]),
-                )
+                # Use custom tool run function if provided, otherwise use the default
+                if custom_tool_run is not None:
+                    result = await custom_tool_run(
+                        tool_collection,
+                        content_block["name"],
+                        cast(dict[str, Any], content_block["input"]),
+                        content_block["id"],
+                    )
+                else:
+                    result = await tool_collection.run(
+                        name=content_block["name"],
+                        tool_input=cast(dict[str, Any], content_block["input"]),
+                    )
                 tool_result_content.append(
                     _make_api_tool_result(result, content_block["id"])
                 )
