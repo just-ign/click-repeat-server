@@ -104,7 +104,7 @@ computer_use_tool_description = """
  Use a mouse and keyboard to interact with a computer, and take screenshots.
  * This is an interface to a desktop GUI. You do not have access to a terminal or applications menu. You must click on desktop icons to start applications.
  * Some applications may take time to start or process actions, so you may need to wait and take successive screenshots to see the results of your actions. E.g. if you click on Firefox and a window doesn't open, try taking another screenshot.
- * The screen's resolution is 1366x768.
+ * The screen's resolution is 1024x768.
  * The display number is 1
  * Whenever you intend to move the cursor to click on an element like an icon, you should consult a screenshot to determine the coordinates of the element before moving the cursor.
  * If you tried clicking on a program or link but it failed to load, even after waiting, try adjusting your cursor position so that the tip of the cursor visually falls on the element that you want to click.
@@ -150,6 +150,7 @@ computer_use_tool_schema = {
                "scroll",
                "wait",
                "screenshot",
+               "run_command"
            ],
            "type": "string",
        },
@@ -175,7 +176,7 @@ computer_use_tool_schema = {
            "type": "array",
        },
        "text": {
-           "description": "Required only by `action=type`, `action=key`, and `action=hold_key`. Can also be used by click or scroll actions to hold down keys while clicking or scrolling.",
+           "description": "Required only by `action=type`, `action=key`, `action=hold_key` and `action=run_command`. Can also be used by click or scroll actions to hold down keys while clicking or scrolling.",
            "type": "string",
        },
    },
@@ -266,14 +267,14 @@ async def sampling_loop(
                 #   "display_height_px": 768,
                 #   "display_number": 1,
                 # },
-                {
-                "type": "text_editor_20250124",
-                "name": "str_replace_editor"
-                },
-                {
-                "type": "bash_20250124",
-                "name": "bash"
-                },
+                # {
+                # "type": "text_editor_20250124",
+                # "name": "str_replace_editor"
+                # },
+                # {
+                # "type": "bash_20250124",
+                # "name": "bash"
+                # },
                 {
                 "name": "computer",
                 "description": computer_use_tool_description,

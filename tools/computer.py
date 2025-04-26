@@ -16,6 +16,22 @@ from anthropic.types.beta import BetaToolComputerUse20241022Param, BetaToolUnion
 from .base import BaseAnthropicTool, ToolError, ToolResult
 from .run import run
 
+from .vm_controller import VMController
+import asyncio
+
+vm_controller = VMController()
+
+# Initialize the VM controller when the module is imported
+async def _initialize_vm_controller():
+    await vm_controller.run()
+
+# Run the initialization in a non-blocking way
+try:
+    asyncio.run(_initialize_vm_controller())
+    print("VM controller initialized successfully")
+except Exception as e:
+    print(f"Failed to initialize VM controller: {e}")
+
 # Store screenshots in current working directory
 OUTPUT_DIR = os.getcwd() + "/screenshots"
 
@@ -33,6 +49,7 @@ Action_20241022 = Literal[
     "double_click",
     "screenshot",
     "cursor_position",
+    "run_command",
 ]
 
 Action_20250124 = (
@@ -156,6 +173,10 @@ class BaseComputerTool:
         **kwargs,
     ):
         print(f"### Performing action: {action}{f', text: {text}' if text else ''}{f', coordinate: {coordinate}' if coordinate else ''}")
+
+        if action == "run_command":
+            await vm_controller.run_command(text)
+            return await self.make_result(f"Command '{text}' run", take_screenshot=False)
         
         # PyAutoGUI implementation for all platforms
         if action in ("mouse_move", "left_click_drag"):
@@ -164,22 +185,23 @@ class BaseComputerTool:
             if text is not None:
                 raise ToolError(f"text is not accepted for {action}")
 
-            x, y = self.validate_and_get_coordinates(coordinate)
+            # x, y = self.validate_and_get_coordinates(coordinate)
+            x, y = coordinate
+            x, y = await vm_controller.to_screen_coordinates(x, y)
 
             if action == "mouse_move":
                 try:
-                    await asyncio.to_thread(pyautogui.moveTo, x, y)
+                    # await vm_controller.move_cursor(x, y)
+                    await vm_controller.move_cursor(x, y)
                     return await self.make_result(f"Mouse moved to {x}, {y}")
                 except Exception as e:
                     raise ToolError(f"Failed to move mouse: {str(e)}")
             elif action == "left_click_drag":
                 try:
                     # Get current position first
-                    current_pos = pyautogui.position()
+                    current_pos = await vm_controller.cursor_position()
                     # Click, drag, and release
-                    await asyncio.to_thread(pyautogui.mouseDown, button='left')
-                    await asyncio.to_thread(pyautogui.moveTo, x, y)
-                    await asyncio.to_thread(pyautogui.mouseUp, button='left')
+                    await vm_controller.drag_to(x, y, button='left', duration=0.5)
                     return await self.make_result(f"Mouse dragged from {current_pos} to {x}, {y}")
                 except Exception as e:
                     raise ToolError(f"Failed to drag mouse: {str(e)}")
@@ -216,7 +238,7 @@ class BaseComputerTool:
                     key_sequence = [
                         "command" if key == "cmd" else key for key in key_sequence
                     ]
-                    await asyncio.to_thread(pyautogui.hotkey, *key_sequence)
+                    await vm_controller.hotkey(*key_sequence)
                     return await self.make_result(f"Key combination '{text}' pressed")
                 except Exception as e:
                     raise ToolError(f"Failed to press key: {str(e)}")
@@ -224,9 +246,7 @@ class BaseComputerTool:
                 try:
                     results = []
                     for chunk in chunks(text, TYPING_GROUP_SIZE):
-                        await asyncio.to_thread(
-                            pyautogui.write, chunk, interval=TYPING_DELAY_MS / 1000.0
-                        )
+                        await vm_controller.type_text(chunk)
                         results.append(f"Typed chunk: {chunk}")
                     
                     return await self.make_result("".join(results))
@@ -249,33 +269,38 @@ class BaseComputerTool:
                 
             elif action == "cursor_position":
                 try:
-                    x, y = pyautogui.position()
-                    api_x, api_y = self.scale_coordinates(ScalingSource.COMPUTER, x, y)
-                    return await self.make_result(f"X={api_x},Y={api_y}")
+                    position = await vm_controller.cursor_position()
+                    x, y = position["x"], position["y"]
+                    x, y = await vm_controller.to_screenshot_coordinates(x, y)
+                    # api_x, api_y = self.scale_coordinates(ScalingSource.COMPUTER, x, y) #TODO Check if scaling is required
+                    return await self.make_result(f"X={x},Y={y}")
                 except Exception as e:
                     raise ToolError(f"Failed to get cursor position: {str(e)}")
                     
             else:  # Handle clicks
                 # If coordinates are provided, move to that position first
                 if coordinate is not None:
-                    x, y = self.validate_and_get_coordinates(coordinate)
+                    # x, y = self.validate_and_get_coordinates(coordinate)
+                    x, y = coordinate
+                    x, y = await vm_controller.to_screen_coordinates(x, y)
                     try:
-                        await asyncio.to_thread(pyautogui.moveTo, x, y)
+                        await vm_controller.move_cursor(x, y)
                     except Exception as e:
                         raise ToolError(f"Failed to move mouse to {x}, {y}: {str(e)}")
                 
                 try:
                     if action == "left_click":
-                        await asyncio.to_thread(pyautogui.click, button='left')
+                        await vm_controller.left_click(x, y)
                         return await self.make_result("Left click performed")
                     elif action == "right_click":
-                        await asyncio.to_thread(pyautogui.click, button='right')
+                        await vm_controller.right_click(x, y)
                         return await self.make_result("Right click performed")
                     elif action == "double_click":
-                        await asyncio.to_thread(pyautogui.doubleClick)
+                        await vm_controller.double_click(x, y)
                         return await self.make_result("Double click performed")
                     elif action == "middle_click":
-                        await asyncio.to_thread(pyautogui.click, button='middle')
+                        # Middle click not directly supported in VM interface
+                        await vm_controller.left_click(x, y)
                         return await self.make_result("Middle click performed")
                 except Exception as e:
                     raise ToolError(f"Failed to perform {action}: {str(e)}")
@@ -311,34 +336,40 @@ class BaseComputerTool:
     async def screenshot(self):
         """Take a screenshot of the current screen and return the base64 encoded image."""
         # Ensure the screenshots directory exists
-        output_dir = Path(OUTPUT_DIR)
-        output_dir.mkdir(parents=True, exist_ok=True)
+        # output_dir = Path(OUTPUT_DIR)
+        # output_dir.mkdir(parents=True, exist_ok=True)
         
-        # Create a unique filename for the screenshot
-        path = output_dir / f"screenshot_{uuid4().hex}.png"
+        # # Create a unique filename for the screenshot
+        # path = output_dir / f"screenshot_{uuid4().hex}.png"
         
-        print(f"Saving screenshot to: {path}")
+        # print(f"Saving screenshot to: {path}")
 
         try:
-            # Use macOS native screencapture
-            screenshot_cmd = f"screencapture -x {path}"
-            result = await self.shell(screenshot_cmd, take_screenshot=False)
+            # # Use macOS native screencapture
+            # screenshot_cmd = f"screencapture -x {path}"
+            # result = await self.shell(screenshot_cmd, take_screenshot=False)
             
-            # Apply fixed scaling if needed
-            if self._scaling_enabled:
-                target_dimension = MAX_SCALING_TARGETS["FWXGA"]  # Fixed to 1366x768
-                # Use sips (macOS built-in image processing) to resize
-                resize_cmd = f"sips -z {target_dimension['height']} {target_dimension['width']} {path}"
-                await self.shell(resize_cmd, take_screenshot=False)
+            # # Apply fixed scaling if needed
+            # if self._scaling_enabled:
+            #     target_dimension = MAX_SCALING_TARGETS["FWXGA"]  # Fixed to 1366x768
+            #     # Use sips (macOS built-in image processing) to resize
+            #     resize_cmd = f"sips -z {target_dimension['height']} {target_dimension['width']} {path}"
+            #     await self.shell(resize_cmd, take_screenshot=False)
             
-            # Read the file and encode as base64
-            if not path.exists():
-                raise ToolError(f"Screenshot file not found at {path}")
+            # # Read the file and encode as base64
+            # if not path.exists():
+            #     raise ToolError(f"Screenshot file not found at {path}")
                 
-            base64_data = base64.b64encode(path.read_bytes()).decode()
+            # base64_data = base64.b64encode(path.read_bytes()).decode()
+
+            # Get the screenshot as bytes from vm_controller
+            screenshot_bytes = await vm_controller.screenshot()
+            
+            # Encode the bytes as base64 string
+            base64_data = base64.b64encode(screenshot_bytes).decode('utf-8')
             
             return ToolResult(
-                output=f"Screenshot saved to {path}",
+                output=f"Screenshot taken",
                 base64_image=base64_data
             )
         except Exception as e:
@@ -353,6 +384,7 @@ class BaseComputerTool:
             # delay to let things settle before taking a screenshot
             await asyncio.sleep(self._screenshot_delay)
             base64_image = (await self.screenshot()).base64_image
+            
 
         return ToolResult(output=stdout, error=stderr, base64_image=base64_image)
 
@@ -428,7 +460,7 @@ class ComputerTool20250124(BaseComputerTool, BaseAnthropicTool):
             if coordinate is not None:
                 x, y = self.validate_and_get_coordinates(coordinate)
                 try:
-                    await asyncio.to_thread(pyautogui.moveTo, x, y)
+                    await vm_controller.move_cursor(x, y)
                 except Exception as e:
                     raise ToolError(f"Failed to move mouse to {x}, {y}: {str(e)}")
             
@@ -512,14 +544,16 @@ class ComputerTool20250124(BaseComputerTool, BaseAnthropicTool):
             if coordinate is not None:
                 x, y = self.validate_and_get_coordinates(coordinate)
                 try:
-                    await asyncio.to_thread(pyautogui.moveTo, x, y)
-                    await asyncio.to_thread(pyautogui.tripleClick)
+                    await vm_controller.move_cursor(x, y)
+                    # Triple click not directly supported in VM interface
+                    await vm_controller.double_click()
                     return await self.make_result(f"Triple clicked at {x}, {y}")
                 except Exception as e:
                     raise ToolError(f"Failed to triple click: {str(e)}")
             else:
                 try:
-                    await asyncio.to_thread(pyautogui.tripleClick)
+                    # Triple click not directly supported in VM interface
+                    await vm_controller.double_click()
                     return await self.make_result("Triple clicked at current position")
                 except Exception as e:
                     raise ToolError(f"Failed to triple click: {str(e)}")
