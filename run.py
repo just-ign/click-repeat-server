@@ -42,7 +42,7 @@ def main():
                 print("After installation, you might need to restart this application.")
     
     # Get API key from environment, command-line, or prompt
-    api_key = "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"
+    api_key = os.getenv("ANTHROPIC_API_KEY")
     
     # # Check if API key was provided as command-line argument
     # for i, arg in enumerate(sys.argv[1:], 1):

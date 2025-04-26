@@ -153,7 +153,7 @@ async def main():
     args = parser.parse_args()
     
     # Load or save API key
-    api_key = "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"
+    api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
         console.print("Error: No API key provided. Use --api-key or set ANTHROPIC_API_KEY environment variable.", style="red")
         sys.exit(1)

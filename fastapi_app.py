@@ -158,7 +158,7 @@ async def websocket_endpoint(websocket: WebSocket):
     logger.info(f"WebSocket connection accepted for {client_id}")
     
     messages = []
-    api_key = "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"
+    api_key = os.getenv("ANTHROPIC_API_KEY")
     model = "claude-3-7-sonnet-20250219"
     tool_version = "computer_use_20250124"
     max_tokens = 1024 * 16

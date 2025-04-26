@@ -82,7 +82,7 @@ def generate(session_path=DEFAULT_SESSION_PATH, api_key=None):
     
     # Initialize Gemini client
     if not api_key:
-        api_key = os.environ.get("GEMINI_API_KEY", "AIzaSyBP6ZKLM0n1tNdzfbGGlqcgeaxXUyN1Ypg")
+        api_key = os.environ.get("GEMINI_API_KEY")
     
     client = genai.Client(api_key=api_key)
     
