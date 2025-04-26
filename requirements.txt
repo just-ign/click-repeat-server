@@ -12,3 +12,5 @@ pyobjc-framework-Cocoa>=9.0.0; sys_platform == 'darwin'
 fastapi
 uvicorn
 cua-computer
+google-genai
+pynput
