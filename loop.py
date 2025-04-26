@@ -46,11 +46,6 @@ class APIProvider(StrEnum):
     VERTEX = "vertex"
 
 
-# This system prompt is optimized for the Docker environment in this repository and
-# specific tool combinations enabled.
-# We encourage modifying this system prompt to ensure the model has context for the
-# environment it is running in, and to provide any additional information that may be
-# helpful for the task at hand.
 SYSTEM_PROMPT = f"""<SYSTEM_CAPABILITY>
 * You are utilizing a macOS environment using {platform.machine()} architecture with internet access.
 * You can feel free to install macOS applications with your bash tool. Use curl to download files and brew to install packages.
@@ -92,14 +87,6 @@ Dont install anything new and dont delete any files.
 </IMPORTANT>
 """
 
-# """
-# <IMPORTANT>
-# * If the item you are looking at is a pdf, if after taking a single screenshot of the pdf it seems that you want to read the entire document instead of trying to continue to read the pdf from your screenshots + navigation, determine the URL, use curl to download the pdf, install and use pdftotext to convert it to a text file, and then read that text file directly with your StrReplaceEditTool.
-# * For installing packages, macOS uses Homebrew. If it's not installed, you can install it with `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`.
-# * You can launch applications using Spotlight by pressing Command + Space, then typing the application name.
-# * To navigate between spaces/desktops, use Control + Left/Right arrows.
-# </IMPORTANT>"""
-
 computer_use_tool_description = """
  Use a mouse and keyboard to interact with a computer, and take screenshots.
  * This is an interface to a desktop GUI. You do not have access to a terminal or applications menu. You must click on desktop icons to start applications.
@@ -133,6 +120,7 @@ computer_use_tool_schema = {
            "* `scroll`: Scroll the screen in a specified direction by a specified amount of clicks of the scroll wheel, at the specified (x, y) pixel coordinate. DO NOT use PageUp/PageDown to scroll.\n"
            "* `wait`: Wait for a specified duration (in seconds).\n"
            "* `screenshot`: Take a screenshot of the screen.",
+           "* `copy_to_clipboard`: Copy the current selection to clipboard. Helpful for copying text from the screen."
            "enum": [
                "key",
                "hold_key",
@@ -150,7 +138,8 @@ computer_use_tool_schema = {
                "scroll",
                "wait",
                "screenshot",
-               "run_command"
+               "run_command",
+               "copy_to_clipboard",
            ],
            "type": "string",
        },
@@ -168,7 +157,7 @@ computer_use_tool_schema = {
        },
        "scroll_direction": {
            "description": "The direction to scroll the screen. Required only by `action=scroll`.",
-           "enum": ["up", "down", "left", "right"],
+           "enum": ["up", "down"],
            "type": "string",
        },
        "start_coordinate": {

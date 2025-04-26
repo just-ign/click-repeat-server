@@ -61,6 +61,7 @@ Action_20250124 = (
         "hold_key",
         "wait",
         "triple_click",
+        "copy_to_clipboard",
     ]
 )
 
@@ -442,10 +443,10 @@ class ComputerTool20250124(BaseComputerTool, BaseAnthropicTool):
         if action in ("left_mouse_down", "left_mouse_up"):
             try:
                 if action == "left_mouse_down":
-                    await asyncio.to_thread(pyautogui.mouseDown, button='left')
+                    await vm_controller.left_mouse_down()
                     return await self.make_result("Left mouse button pressed down")
                 else:
-                    await asyncio.to_thread(pyautogui.mouseUp, button='left')
+                    await vm_controller.left_mouse_up()
                     return await self.make_result("Left mouse button released")
             except Exception as e:
                 raise ToolError(f"Failed to perform {action}: {str(e)}")
@@ -473,68 +474,78 @@ class ComputerTool20250124(BaseComputerTool, BaseAnthropicTool):
                     scroll_value = scroll_amount * scroll_multiplier
                 elif scroll_direction == "down":
                     scroll_value = -scroll_amount * scroll_multiplier
-                elif scroll_direction == "left":
-                    # PyAutoGUI uses a different function for horizontal scrolling
-                    await asyncio.to_thread(pyautogui.hscroll, -scroll_amount * scroll_multiplier)
-                    return await self.make_result(f"Scrolled left {scroll_amount} times")
-                elif scroll_direction == "right":
-                    await asyncio.to_thread(pyautogui.hscroll, scroll_amount * scroll_multiplier)
-                    return await self.make_result(f"Scrolled right {scroll_amount} times")
+                # elif scroll_direction == "left":
+                #     # PyAutoGUI uses a different function for horizontal scrolling
+                #     # await asyncio.to_thread(pyautogui.hscroll, -scroll_amount * scroll_multiplier)
+                #     return await self.make_result(f"Scrolled left {scroll_amount} times")
+                # elif scroll_direction == "right":
+                #     # await asyncio.to_thread(pyautogui.hscroll, scroll_amount * scroll_multiplier)
+                #     return await self.make_result(f"Scrolled right {scroll_amount} times")
                 
                 # Vertical scroll
                 if scroll_direction in ("up", "down"):
                     # On macOS, use an alternative approach for more reliable scrolling
                     if self.is_macos:
                         try:
-                            # Use vscroll method if available (newer PyAutoGUI versions)
-                            if hasattr(pyautogui, 'vscroll'):
-                                await asyncio.to_thread(pyautogui.vscroll, scroll_value)
+                        #     # Use vscroll method if available (newer PyAutoGUI versions)
+                        #     if hasattr(pyautogui, 'vscroll'):
+                        #         await asyncio.to_thread(pyautogui.vscroll, scroll_value)
+                        #     else:
+                        #         # Try multiple smaller scrolls for more reliability
+                        #         for _ in range(abs(scroll_amount)):
+                        #             increment = 25 if scroll_direction == "up" else -25
+                        #             await asyncio.to_thread(pyautogui.scroll, increment * scroll_multiplier // 10)
+                        #             await asyncio.sleep(0.05)  # Small delay between scrolls
+                        # except Exception as e:
+                        #     print(f"PyAutoGUI scrolling failed: {str(e)}. Trying AppleScript...")
+                        #     # Fallback to AppleScript as a last resort
+                        #     direction_str = "up" if scroll_direction == "up" else "down"
+                        #     count = scroll_amount * 5  # Multiply for more visible effect
+                        #     applescript = f'''
+                        #     tell application "System Events"
+                        #         repeat {count} times
+                        #             key code {126 if direction_str == "up" else 125}  # 126=up, 125=down arrow keys
+                        #             delay 0.05
+                        #         end repeat
+                        #     end tell
+                        #     '''
+                        #     await run(f"osascript -e '{applescript}'")
+                            if scroll_direction == "up":
+                                await vm_controller.scroll_up(scroll_amount)
                             else:
-                                # Try multiple smaller scrolls for more reliability
-                                for _ in range(abs(scroll_amount)):
-                                    increment = 25 if scroll_direction == "up" else -25
-                                    await asyncio.to_thread(pyautogui.scroll, increment * scroll_multiplier // 10)
-                                    await asyncio.sleep(0.05)  # Small delay between scrolls
+                                await vm_controller.scroll_down(scroll_amount)
                         except Exception as e:
-                            print(f"PyAutoGUI scrolling failed: {str(e)}. Trying AppleScript...")
-                            # Fallback to AppleScript as a last resort
-                            direction_str = "up" if scroll_direction == "up" else "down"
-                            count = scroll_amount * 5  # Multiply for more visible effect
-                            applescript = f'''
-                            tell application "System Events"
-                                repeat {count} times
-                                    key code {126 if direction_str == "up" else 125}  # 126=up, 125=down arrow keys
-                                    delay 0.05
-                                end repeat
-                            end tell
-                            '''
-                            await run(f"osascript -e '{applescript}'")
+                            raise ToolError(f"Failed to scroll: {str(e)}")
                     else:
                         # On other platforms, use regular scroll
-                        await asyncio.to_thread(pyautogui.scroll, scroll_value)
+                        # await asyncio.to_thread(pyautogui.scroll, scroll_value)
+                        if scroll_direction == "up":
+                            await vm_controller.scroll_up(scroll_amount)
+                        else:
+                            await vm_controller.scroll_down(scroll_amount)
                     
                     return await self.make_result(f"Scrolled {scroll_direction} {scroll_amount} times")
             except Exception as e:
                 raise ToolError(f"Failed to scroll: {str(e)}")
 
-        if action in ("hold_key", "wait"):
-            if duration is None or not isinstance(duration, (int, float)):
-                raise ToolError(f"duration must be a number")
-            if duration < 0:
-                raise ToolError(f"duration must be non-negative")
-            if duration > 100:
-                raise ToolError(f"duration is too long (max 100)")
+        # if action in ("hold_key", "wait"): #TODO Move to VM controller
+            # if duration is None or not isinstance(duration, (int, float)):
+            #     raise ToolError(f"duration must be a number")
+            # if duration < 0:
+            #     raise ToolError(f"duration must be non-negative")
+            # if duration > 100:
+            #     raise ToolError(f"duration is too long (max 100)")
 
-            if action == "hold_key":
-                if text is None:
-                    raise ToolError(f"text is required for {action}")
-                try:
-                    await asyncio.to_thread(pyautogui.keyDown, text)
-                    await asyncio.sleep(duration)
-                    await asyncio.to_thread(pyautogui.keyUp, text)
-                    return await self.make_result(f"Held key '{text}' for {duration} seconds")
-                except Exception as e:
-                    raise ToolError(f"Failed to hold key: {str(e)}")
+            # if action == "hold_key":
+            #     if text is None:
+            #         raise ToolError(f"text is required for {action}")
+            #     try:
+            #         await asyncio.to_thread(pyautogui.keyDown, text)
+            #         await asyncio.sleep(duration)
+            #         await asyncio.to_thread(pyautogui.keyUp, text)
+            #         return await self.make_result(f"Held key '{text}' for {duration} seconds")
+            #     except Exception as e:
+            #         raise ToolError(f"Failed to hold key: {str(e)}")
 
             if action == "wait":
                 await asyncio.sleep(duration)
@@ -557,6 +568,13 @@ class ComputerTool20250124(BaseComputerTool, BaseAnthropicTool):
                     return await self.make_result("Triple clicked at current position")
                 except Exception as e:
                     raise ToolError(f"Failed to triple click: {str(e)}")
+        
+        if action == "copy_to_clipboard":
+            try:
+                content = await vm_controller.copy_to_clipboard()
+                return await self.make_result(f"Copied to clipboard: {content}")
+            except Exception as e:
+                raise ToolError(f"Failed to copy to clipboard: {str(e)}")
 
         # For other actions, delegate to the parent implementation
         return await super().__call__(
