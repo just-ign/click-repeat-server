@@ -110,6 +110,33 @@ def stop_recording_endpoint():
         logger.error(f"Error stopping recording: {str(e)}")
         return {"status": "error", "message": f"Failed to stop recording: {str(e)}"}
 
+@app.get("/workflows")
+async def get_workflow():
+    import os
+    import json
+
+    workflows = []
+    recordings_dir = os.path.join(os.getcwd(), "recordings")
+    
+    # Iterate through all session directories in the recordings folder
+    for session_dir in os.listdir(recordings_dir):
+        session_path = os.path.join(recordings_dir, session_dir)
+        
+        # Check if it's a directory
+        if os.path.isdir(session_path):
+            workflow_file = os.path.join(session_path, "workflow_structured.json")
+            
+            # Check if the workflow_structured.json file exists
+            if os.path.exists(workflow_file):
+                try:
+                    with open(workflow_file, 'r') as f:
+                        workflow_content = f.read()
+                        workflows.append(json.loads(workflow_content))
+                except Exception as e:
+                    logger.error(f"Error reading workflow file {workflow_file}: {str(e)}")
+    
+    return {"status": "success", "message": "Workflow retrieved successfully", "workflows": workflows}
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     client_host = websocket.client.host
