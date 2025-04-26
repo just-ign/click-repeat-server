@@ -33,6 +33,7 @@ prompt = """Based on the screen recording and the provided JSON data, analyze th
 ```
 
 Make sure to focus on concrete actions that can be programmatically recreated. Be specific about what the user did rather than what was visible on screen. The response MUST be valid JSON that can be parsed.
+Ignore the last few steps that's involved in stopping the video recording'.
 """
 
 
