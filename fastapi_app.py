@@ -5,6 +5,9 @@ import logging
 from loop import sampling_loop, APIProvider
 from anthropic.types.beta import BetaTextBlockParam
 from tools import ToolResult
+import recorder  # Import the recorder module
+import threading
+from video_processing import generate
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -79,6 +82,33 @@ async def custom_tool_run(tool_collection, name, tool_input, tool_id, websocket)
     else:
         # Redirect to client-side execution with the tool_id
         return await client_side_tool_execution(name, tool_input, tool_id, websocket)
+
+@app.post("/start_recording")
+def start_recording_endpoint():
+    """Start screen, audio, and interaction recording in a non-blocking way"""
+    try:
+        # Start recording in a separate thread to avoid blocking
+        recording_thread = threading.Thread(target=recorder.start_recording)
+        recording_thread.daemon = True  # Thread will exit when main program exits
+        recording_thread.start()
+        logger.info("Recording started in background thread")
+        return {"status": "success", "message": "Recording started successfully in the background"}
+    except Exception as e:
+        logger.error(f"Error starting recording: {str(e)}")
+        return {"status": "error", "message": f"Failed to start recording: {str(e)}"}
+
+@app.post("/stop_recording")
+def stop_recording_endpoint():
+    """Stop ongoing recording and save results"""
+    try:
+        # Call the stop_recording function from the recorder module
+        out_dir = recorder.stop_recording()
+        print("Processing video...")
+        generate(out_dir)
+        return {"status": "success", "message": "Recording stopped and saved successfully", "out_dir": out_dir}
+    except Exception as e:
+        logger.error(f"Error stopping recording: {str(e)}")
+        return {"status": "error", "message": f"Failed to stop recording: {str(e)}"}
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
