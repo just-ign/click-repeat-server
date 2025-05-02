@@ -36,10 +36,10 @@ class VMController:
     async def type_text(self, text: str) -> None:
         await self.computer.interface.type_text(text)
 
-    async def press(self, key: "KeyType") -> None:
+    async def press(self, key) -> None:
         await self.computer.interface.press(key)
 
-    async def press_key(self, key: "KeyType") -> None:
+    async def press_key(self, key) -> None:
         await self.computer.interface.press_key(key)
 
     async def hotkey(self, *keys) -> None:

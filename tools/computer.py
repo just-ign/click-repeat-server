@@ -62,6 +62,11 @@ Action_20250124 = (
         "wait",
         "triple_click",
         "copy_to_clipboard",
+        "set_clipboard",
+        "check_file_exists",
+        "check_directory_exists",
+        "get_accessibility_tree",
+        "get_active_window_bounds",
     ]
 )
 
@@ -217,20 +222,20 @@ class BaseComputerTool:
 
             if action == "key":
                 try:
-                    # Special case for Spotlight (Command+Space)
-                    if text.lower() in ("command+space", "cmd+space") and self.is_macos:
-                        try:
-                            # Fallback to AppleScript if needed
-                            applescript = '''
-                            tell application "System Events"
-                                keystroke space using command down
-                                delay 0.1
-                            end tell
-                            '''
-                            await run(f"osascript -e '{applescript}'")
-                            return await self.make_result(f"Spotlight triggered via AppleScript")
-                        except Exception as e:
-                            raise ToolError(f"Failed to open Spotlight: {str(e)}")
+                    # # Special case for Spotlight (Command+Space)
+                    # if text.lower() in ("command+space", "cmd+space") and self.is_macos:
+                    #     try:
+                    #         # Fallback to AppleScript if needed
+                    #         applescript = '''
+                    #         tell application "System Events"
+                    #             keystroke space using command down
+                    #             delay 0.1
+                    #         end tell
+                    #         '''
+                    #         await run(f"osascript -e '{applescript}'")
+                    #         return await self.make_result(f"Spotlight triggered via AppleScript")
+                    #     except Exception as e:
+                    #         raise ToolError(f"Failed to open Spotlight: {str(e)}")
                     
                     # Handle key combinations and modifiers
                     key_sequence = text.lower().replace("super", "command").split("+")
@@ -367,7 +372,7 @@ class BaseComputerTool:
             screenshot_bytes = await vm_controller.screenshot()
             
             # Encode the bytes as base64 string
-            base64_data = base64.b64encode(screenshot_bytes).decode('utf-8')
+            base64_data = base64.b64encode(screenshot_bytes).decode()
             
             return ToolResult(
                 output=f"Screenshot taken",
@@ -528,21 +533,22 @@ class ComputerTool20250124(BaseComputerTool, BaseAnthropicTool):
             except Exception as e:
                 raise ToolError(f"Failed to scroll: {str(e)}")
 
-        # if action in ("hold_key", "wait"): #TODO Move to VM controller
-            # if duration is None or not isinstance(duration, (int, float)):
-            #     raise ToolError(f"duration must be a number")
-            # if duration < 0:
-            #     raise ToolError(f"duration must be non-negative")
-            # if duration > 100:
-            #     raise ToolError(f"duration is too long (max 100)")
+        if action in ("hold_key", "wait"): #TODO Move to VM controller
+            if duration is None or not isinstance(duration, (int, float)):
+                raise ToolError(f"duration must be a number")
+            if duration < 0:
+                raise ToolError(f"duration must be non-negative")
+            if duration > 100:
+                raise ToolError(f"duration is too long (max 100)")
 
             # if action == "hold_key":
             #     if text is None:
             #         raise ToolError(f"text is required for {action}")
             #     try:
-            #         await asyncio.to_thread(pyautogui.keyDown, text)
-            #         await asyncio.sleep(duration)
-            #         await asyncio.to_thread(pyautogui.keyUp, text)
+            #         # await asyncio.to_thread(pyautogui.keyDown, text)
+            #         # await asyncio.sleep(duration)
+            #         # await asyncio.to_thread(pyautogui.keyUp, text)
+            #         await vm_controller.hold_key(text, duration)
             #         return await self.make_result(f"Held key '{text}' for {duration} seconds")
             #     except Exception as e:
             #         raise ToolError(f"Failed to hold key: {str(e)}")
@@ -575,7 +581,48 @@ class ComputerTool20250124(BaseComputerTool, BaseAnthropicTool):
                 return await self.make_result(f"Copied to clipboard: {content}")
             except Exception as e:
                 raise ToolError(f"Failed to copy to clipboard: {str(e)}")
-
+            
+        if action == "set_clipboard":
+            if text is None:
+                raise ToolError(f"text is required for {action}")
+            try:
+                await vm_controller.set_clipboard(text)
+                return await self.make_result(f"Set clipboard to: {text}")
+            except Exception as e:
+                raise ToolError(f"Failed to set clipboard: {str(e)}")
+            
+        if action == "check_file_exists":
+            if text is None:
+                raise ToolError(f"text is required for {action}")
+            try:
+                exists = await vm_controller.file_exists(text)
+                return await self.make_result(f"File exists: {exists}")
+            except Exception as e:
+                raise ToolError(f"Failed to check file exists: {str(e)}")
+            
+        if action == "check_directory_exists":
+            if text is None:
+                raise ToolError(f"text is required for {action}")
+            try:
+                exists = await vm_controller.directory_exists(text)
+                return await self.make_result(f"Directory exists: {exists}")
+            except Exception as e:
+                raise ToolError(f"Failed to check directory exists: {str(e)}")
+            
+        if action == "get_accessibility_tree":
+            try:
+                tree = await vm_controller.get_accessibility_tree()
+                return await self.make_result(f"Accessibility tree: {tree}")
+            except Exception as e:
+                raise ToolError(f"Failed to get accessibility tree: {str(e)}")
+            
+        if action == "get_active_window_bounds":
+            try:
+                bounds = await vm_controller.get_active_window_bounds()
+                return await self.make_result(f"Active window bounds: {bounds}")
+            except Exception as e:
+                raise ToolError(f"Failed to get active window bounds: {str(e)}")
+            
         # For other actions, delegate to the parent implementation
         return await super().__call__(
             action=action, text=text, coordinate=coordinate, key=key, **kwargs
