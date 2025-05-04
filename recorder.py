@@ -84,11 +84,11 @@ def ffmpeg_cmd(out_dir):
     if sys == "Darwin":  # macOS
         # First, list available devices to help with debugging
         c.print("[bold yellow]Available AVFoundation devices:[/]")
-        os.system("ffmpeg -f avfoundation -list_devices true -i """)
+        os.system("ffmpeg -f avfoundation -list_devices true")
         
         # Use combined input for better sync - capture both screen and audio in one command
-        # Format is "VIDEO_DEVICE:AUDIO_DEVICE" - using 1 for screen and 0 for built-in mic
-        video_audio_in = "-f avfoundation -framerate 30 -capture_cursor 1 -i 1:0"
+        # Format is "VIDEO_DEVICE:AUDIO_DEVICE" - using "0" for main screen and "default" for default audio input
+        video_audio_in = "-f avfoundation -framerate 30 -capture_cursor 1 -i 3:default"
         
         # Simple audio filters to avoid syntax errors
         audio_filters = "volume=1.5"
